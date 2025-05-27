@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crab Monitoring - Data History</title>
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 2.5rem;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .crab-icon {
+            font-size: 2.5rem;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: center;
+            align-items: end;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            min-width: 200px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .data-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .data-info {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .connection-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 18px 15px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f3f4;
+            transition: background-color 0.3s ease;
+        }
+
+        tr:hover {
+            background: #f8f9ff;
+        }
+
+        tr:nth-child(even) {
+            background: #fafbfc;
+        }
+
+        tr:nth-child(even):hover {
+            background: #f0f2ff;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .status-normal {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-critical {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .pagination button {
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .pagination button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+            font-size: 18px;
+        }
+
+        @media (max-width: 768px) {
+            .controls-row {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .control-group {
+                min-width: 100%;
+                max-width: 300px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            th, td {
+                padding: 12px 8px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="crab-icon">🦀</span>
+                Data History
+            </h1>
+            <p>Riwayat lengkap data monitoring kondisi kepiting</p>
+            <a href="#" class="back-btn" onclick="goBack()">
+                ← Kembali ke Dashboard
+            </a>
+        </div>
+
+        <div class="controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="startDate">Tanggal Mulai</label>
+                    <input type="date" id="startDate" onchange="filterData()">
+                </div>
+                <div class="control-group">
+                    <label for="endDate">Tanggal Akhir</label>
+                    <input type="date" id="endDate" onchange="filterData()">
+                </div>
+                <div class="control-group">
+                    <label for="statusFilter">Filter Status</label>
+                    <select id="statusFilter" onchange="filterData()">
+                        <option value="all">Semua Status</option>
+                        <option value="normal">Normal</option>
+                        <option value="warning">Warning</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <div class="data-header">
+                <h3>📋 Riwayat Data Monitoring</h3>
+                <div style="display: flex; align-items: center;">
+                    <div class="data-info">
+                        
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortData('timestamp')">📅 Tanggal & Waktu</th>
+                            <th onclick="sortData('temperature')">🌡️ Suhu (°C)</th>
+                            <th onclick="sortData('salinity')">🧂 Salinitas (ppt)</th>
+                            <th onclick="sortData('ph')">🟡 pH</th>
+                            <th onclick="sortData('oxygen')">💨 Oksigen (mg/L)</th>
+                            <th onclick="sortData('status')">📊 Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        <!-- Data akan diisi oleh JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination" id="pagination">
+                <!-- Pagination akan diisi oleh JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "your-api-key-here",
+            authDomain: "your-project.firebaseapp.com",
+            databaseURL: "https://your-project-default-rtdb.firebaseio.com/",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        // Initialize Firebase
+        let database;
+        let dataRef;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            dataRef = database.ref('sensor_data');
+            console.log('Firebase initialized successfully');
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+        }
+
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        const itemsPerPage = 20;
+        let sortColumn = 'timestamp';
+        let sortDirection = 'desc';
+        let isConnected = false;
+
+
+        // Firebase real-time listener
+        function setupFirebaseListener() {
+            if (!dataRef) {
+                console.error('Firebase not initialized');
+                generateSampleData(); // Fallback to sample data
+                return;
+            }
+
+            updateConnectionStatus('loading');
+
+            // Listen for connection state
+            const connectedRef = database.ref('.info/connected');
+            connectedRef.on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    updateConnectionStatus('connected');
+                } else {
+                    updateConnectionStatus('disconnected');
+                }
+            });
+
+            // Listen for data changes
+            dataRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    allData = Object.keys(data).map(key => ({
+                        id: key,
+                        ...data[key],
+                        timestamp: new Date(data[key].timestamp)
+                    })).sort((a, b) => b.timestamp - a.timestamp); // Newest first
+                    
+                    console.log(`Loaded ${allData.length} records from Firebase`);
+                    filterData();
+                } else {
+                    console.log('No data available, using sample data');
+                    generateSampleData();
+                }
+            }, (error) => {
+                console.error('Firebase read error:', error);
+                updateConnectionStatus('disconnected');
+                generateSampleData(); // Fallback to sample data
+            });
+
+            // Listen for new data additions
+            dataRef.on('child_added', (snapshot) => {
+                if (isConnected) {
+                    console.log('New data received:', snapshot.key);
+                    // Data will be automatically updated by the main listener
+                }
+            });
+        }
+
+        // Generate sample data (fallback when Firebase is not available)
+        function generateSampleData() {
+            console.log('Generating sample data...');
+            const data = [];
+            const now = new Date();
+            
+            // Generate data untuk 30 hari terakhir, setiap 2 jam
+            for (let i = 360; i >= 0; i--) {
+                const date = new Date(now.getTime() - (i * 2 * 60 * 60 * 1000));
+                
+                // Base values untuk kepiting
+                const baseTemp = 28;
+                const baseSalinity = 35;
+                const basePH = 8.0;
+                const baseOxygen = 7;
+                
+                // Add realistic variation
+                const temp = baseTemp + (Math.random() - 0.5) * 6;
+                const salinity = baseSalinity + (Math.random() - 0.5) * 8;
+                const ph = basePH + (Math.random() - 0.5) * 1.2;
+                const oxygen = baseOxygen + (Math.random() - 0.5) * 3;
+                
+                // Status logic
+                let status = 'normal';
+                if (temp > 30 || temp < 26 || salinity > 37 || salinity < 33 || 
+                    ph > 8.3 || ph < 7.7 || oxygen < 6.5) {
+                    status = 'warning';
+                }
+                if (temp > 32 || temp < 24 || salinity > 39 || salinity < 31 || 
+                    ph > 8.6 || ph < 7.4 || oxygen < 6) {
+                    status = 'critical';
+                }
+                
+                data.push({
+                    id: `sample_${data.length + 1}`,
+                    timestamp: date,
+                    temperature: parseFloat(temp.toFixed(1)),
+                    salinity: parseFloat(salinity.toFixed(1)),
+                    ph: parseFloat(ph.toFixed(1)),
+                    oxygen: parseFloat(oxygen.toFixed(1)),
+                    status: status,
+                    sensor_id: 'SAMPLE_DATA'
+                });
+            }
+            
+            allData = data.reverse(); // Newest first
+            filterData();
+        }
+
+        // Initialize page
+        function initializePage() {
+            // Set default dates (last 7 days)
+            const endDate = new Date();
+            const startDate = new Date(endDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+            
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+            
+            // Setup Firebase listener
+            setupFirebaseListener();
+        }
+
+        // Filter data based on controls
+        function filterData() {
+            const startDate = new Date(document.getElementById('startDate').value);
+            const endDate = new Date(document.getElementById('endDate').value);
+            const statusFilter = document.getElementById('statusFilter').value;
+            
+            // Adjust end date to include full day
+            endDate.setHours(23, 59, 59);
+            
+            filteredData = allData.filter(item => {
+                const dateMatch = item.timestamp >= startDate && item.timestamp <= endDate;
+                const statusMatch = statusFilter === 'all' || item.status === statusFilter;
+                return dateMatch && statusMatch;
+            });
+            
+            currentPage = 1;
+            sortData(sortColumn);
+            renderTable();
+            renderPagination();
+        }
+
+        // Sort data
+        function sortData(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'desc';
+            }
+            
+            filteredData.sort((a, b) => {
+                let valueA = a[column];
+                let valueB = b[column];
+                
+                if (column === 'timestamp') {
+                    valueA = new Date(valueA);
+                    valueB = new Date(valueB);
+                }
+                
+                if (sortDirection === 'asc') {
+                    return valueA > valueB ? 1 : -1;
+                } else {
+                    return valueA < valueB ? 1 : -1;
+                }
+            });
+            
+            renderTable();
+        }
+
+        // Render table
+        function renderTable() {
+            const tbody = document.getElementById('dataTableBody');
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="no-data">Tidak ada data yang ditemukan</td></tr>';
+            } else {
+                tbody.innerHTML = pageData.map(item => {
+                    const statusClass = `status-${item.status}`;
+                    const statusText = item.status === 'normal' ? 'Normal' : 
+                                     item.status === 'warning' ? 'Warning' : 'Critical';
+                    
+                    return `
+                        <tr>
+                            <td>${item.timestamp.toLocaleString('id-ID')}</td>
+                            <td>${item.temperature}</td>
+                            <td>${item.salinity}</td>
+                            <td>${item.ph}</td>
+                            <td>${item.oxygen}</td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+            
+            // Update data count
+            document.getElementById('dataCount').textContent = filteredData.length;
+        }
+
+        // Render pagination
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            const pagination = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            let paginationHTML = '';
+            
+            // Previous button
+            paginationHTML += `<button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>←</button>`;
+            
+            // Page numbers
+            for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+                paginationHTML += `<button onclick="changePage(${i})" ${i === currentPage ? 'class="active"' : ''}>${i}</button>`;
+            }
+            
+            // Next button
+            paginationHTML += `<button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>→</button>`;
+            
+            pagination.innerHTML = paginationHTML;
+        }
+
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                renderTable();
+                renderPagination();
+            }
+        }
+
+        // Navigation
+        function goBack() {
+            alert('Navigasi kembali ke Dashboard');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializePage);
+    </script>
+</body>
+</html>
